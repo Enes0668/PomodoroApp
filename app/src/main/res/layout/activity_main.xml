@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/textViewTimer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="25:00"
+        android:textSize="48sp"
+        android:gravity="center"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="60dp" />
+
+    <TextView
+        android:id="@+id/textViewPomodoroCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tamamlanan Pomodoro: 0"
+        android:textSize="16sp"
+        app:layout_constraintTop_toBottomOf="@id/textViewTimer"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="20dp"/>
+
+    <Button
+        android:id="@+id/buttonStart"
+        android:layout_width="208dp"
+        android:layout_height="87dp"
+        android:text="Başlat"
+        android:backgroundTint="@color/turquoise"
+        app:layout_constraintTop_toBottomOf="@id/textViewPomodoroCount"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="60dp" />
+
+    <Button
+        android:id="@+id/buttonReset"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Sıfırla"
+        android:backgroundTint="@color/red"
+        app:layout_constraintTop_toBottomOf="@id/buttonStart"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="40dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
