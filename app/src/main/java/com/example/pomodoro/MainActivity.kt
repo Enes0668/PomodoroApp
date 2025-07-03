@@ -1,49 +1,58 @@
 package com.example.pomodoro
 
+import android.content.Context
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.os.Build
-import android.app.PendingIntent
-import android.content.Intent
-import androidx.core.app.NotificationCompat
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var textViewTimer: TextView
     private lateinit var buttonStart: Button
     private lateinit var buttonReset: Button
+    private lateinit var buttonResetPomodoroCount: Button
     private lateinit var textViewPomodoroCount: TextView
+    private lateinit var textViewMode: TextView
 
     private var timer: CountDownTimer? = null
     private var isRunning = false
     private var timeLeftInMillis: Long = 0
 
     private var pomodoroCount = 0
-    private val pomodorosBeforeLongBreak = 4
 
-    private val pomodoroDuration = 25 * 60 * 1000L  // gerçek süreyi kullanabilirsin
-    private val shortBreakDuration = 5 * 60 * 1000L
-    private val longBreakDuration = 15 * 60 * 1000L
+    private val pomodoroDuration = 25 * 60 * 1000L    // 25 dakika
+    private val shortBreakDuration = 5 * 60 * 1000L   // 5 dakika
+    private val longBreakDuration = 15 * 60 * 1000L   // 15 dakika
+
+    private lateinit var mediaPlayer: MediaPlayer
+
+    private enum class TimerMode { POMODORO, SHORT_BREAK, LONG_BREAK }
+    private var currentMode = TimerMode.POMODORO
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        createNotificationChannel()
 
         textViewTimer = findViewById(R.id.textViewTimer)
         buttonStart = findViewById(R.id.buttonStart)
         buttonReset = findViewById(R.id.buttonReset)
+        buttonResetPomodoroCount = findViewById(R.id.buttonResetPomodoroCount)
         textViewPomodoroCount = findViewById(R.id.textViewPomodoroCount)
+        textViewMode = findViewById(R.id.textViewMode)
+
+        val prefs = getSharedPreferences("pomodoro_prefs", Context.MODE_PRIVATE)
+        pomodoroCount = prefs.getInt("pomodoro_count", 0)
+        updatePomodoroCountText()
+
+        mediaPlayer = MediaPlayer.create(this, R.raw.bell_sound)
 
         buttonStart.setOnClickListener {
             if (!isRunning) {
-                startTimer(timeLeftInMillis.takeIf { it > 0 } ?: pomodoroDuration)
+                val duration = getCurrentDuration()
+                startTimer(timeLeftInMillis.takeIf { it > 0 } ?: duration)
             } else {
                 pauseTimer()
             }
@@ -53,42 +62,21 @@ class MainActivity : AppCompatActivity() {
             resetTimer()
         }
 
-        // Başlangıçta timer 25:00 gösterir
+        buttonResetPomodoroCount.setOnClickListener {
+            pomodoroCount = 0
+            savePomodoroCount()
+            updatePomodoroCountText()
+        }
+
         resetTimer()
     }
 
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "pomodoro_channel",
-                "Pomodoro Bildirimleri",
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "Sayaç bildirimleri"
-            }
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
+    private fun getCurrentDuration(): Long {
+        return when (currentMode) {
+            TimerMode.POMODORO -> pomodoroDuration
+            TimerMode.SHORT_BREAK -> shortBreakDuration
+            TimerMode.LONG_BREAK -> longBreakDuration
         }
-    }
-
-    private fun sendNotification(title: String, message: String) {
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notification = NotificationCompat.Builder(this, "pomodoro_channel")
-            .setSmallIcon(R.drawable.ic_timer) // drawable içine bir simge eklemelisin
-            .setContentTitle(title)
-            .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .build()
-
-        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(1, notification)
     }
 
     private fun startTimer(duration: Long) {
@@ -101,34 +89,25 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onFinish() {
-                isRunning = false
-                buttonStart.text = "Başlat"
-                sendNotification("Zaman doldu!", "Mola zamanı 🍵")
-
-                if (duration == pomodoroDuration) {
-                    // Pomodoro bitti
-                    pomodoroCount++
-                    textViewPomodoroCount.text = "Tamamlanan Pomodoro: $pomodoroCount"
-
-                    if (pomodoroCount % pomodorosBeforeLongBreak == 0) {
-                        // Uzun mola başlat
-                        startTimer(longBreakDuration)
-                        sendNotification("Uzun mola başladı", "15 dakika dinlen")
-                    } else {
-                        // Kısa mola başlat
-                        startTimer(shortBreakDuration)
-                        sendNotification("Kısa mola başladı", "5 dakika dinlen")
+                playSound()
+                when (currentMode) {
+                    TimerMode.POMODORO -> {
+                        pomodoroCount++
+                        updatePomodoroCountText()
+                        savePomodoroCount()
+                        currentMode = if (pomodoroCount % 4 == 0) TimerMode.LONG_BREAK else TimerMode.SHORT_BREAK
                     }
-                } else {
-                    // Mola bitti, yeni pomodoro başlat
-                    startTimer(pomodoroDuration)
-                    sendNotification("Çalışma zamanı", "25 dakika çalış")
+                    TimerMode.SHORT_BREAK, TimerMode.LONG_BREAK -> {
+                        currentMode = TimerMode.POMODORO
+                    }
                 }
+                resetTimer()
             }
         }.start()
 
         isRunning = true
         buttonStart.text = "Duraklat"
+        updateModeText()
     }
 
     private fun pauseTimer() {
@@ -140,17 +119,45 @@ class MainActivity : AppCompatActivity() {
     private fun resetTimer() {
         timer?.cancel()
         isRunning = false
-        timeLeftInMillis = pomodoroDuration
+        timeLeftInMillis = getCurrentDuration()
         updateTimerText(timeLeftInMillis)
-        pomodoroCount = 0
-        textViewPomodoroCount.text = "Tamamlanan Pomodoro: $pomodoroCount"
         buttonStart.text = "Başlat"
+        updateModeText()
     }
 
     private fun updateTimerText(millis: Long) {
         val minutes = (millis / 1000) / 60
         val seconds = (millis / 1000) % 60
-        val formatted = String.format("%02d:%02d", minutes, seconds)
-        textViewTimer.text = formatted
+        textViewTimer.text = String.format("%02d:%02d", minutes, seconds)
+    }
+
+    private fun updatePomodoroCountText() {
+        textViewPomodoroCount.text = "Tamamlanan Pomodoro: $pomodoroCount"
+    }
+
+    private fun updateModeText() {
+        val modeText = when (currentMode) {
+            TimerMode.POMODORO -> "Pomodoro"
+            TimerMode.SHORT_BREAK -> "Kısa Mola"
+            TimerMode.LONG_BREAK -> "Uzun Mola"
+        }
+        textViewMode.text = "Mod: $modeText"
+    }
+
+    private fun savePomodoroCount() {
+        val prefs = getSharedPreferences("pomodoro_prefs", Context.MODE_PRIVATE)
+        with(prefs.edit()) {
+            putInt("pomodoro_count", pomodoroCount)
+            apply()
+        }
+    }
+
+    private fun playSound() {
+        mediaPlayer.start()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        mediaPlayer.release()
     }
 }
